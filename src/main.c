@@ -19,36 +19,51 @@ int main() {
     // Loop principal infinito até o usuário escolher sair (opção 0)
     while (1) {
         printf("\n==========================================\n");
-        printf("   SIMULADOR DE CACHE - MENU INTERATIVO\n");
+        printf("   SIMULADOR DE CACHE - MENU PRINCIPAL\n");
         printf("==========================================\n");
 
-        // 1. Escolher o Algoritmo
-        printf("\nEscolha o Algoritmo:\n");
-        printf("1. LRU\n");
-        printf("2. Mockingjay\n");
-        printf("0. Sair\n");
+        // 1. Escolher o Modo de Execução
+        printf("\nEscolha o Modo de Execucao:\n");
+        printf("1. Execucao Completa (Direto para o resultado)\n");
+        printf("2. Passo a Passo (Validacao linha a linha)\n");
+        printf("0. Sair do Programa\n");
         printf("Opcao: ");
 
-        int op_algo;
-        if (scanf("%d", &op_algo) != 1 || op_algo == 0) {
+        int modo_execucao;
+        if (scanf("%d", &modo_execucao) != 1 || modo_execucao == 0) {
             printf("\nEncerrando o simulador...\n");
             break;
         }
-        if (op_algo < 1 || op_algo > 2) {
+        if (modo_execucao < 1 || modo_execucao > 2) {
             printf("\n[!] Opcao invalida. Tente novamente.\n");
             continue;
         }
 
+        // 2. Escolher o Algoritmo
+        printf("\n==========================================\n");
+        printf("Escolha o Algoritmo:\n");
+        printf("1. LRU\n");
+        printf("2. Mockingjay\n");
+        printf("0. Voltar\n");
+        printf("Opcao: ");
+
+        int op_algo;
+        if (scanf("%d", &op_algo) != 1 || op_algo == 0) continue;
+        if (op_algo < 1 || op_algo > 2) {
+            printf("\n[!] Opcao invalida.\n");
+            continue;
+        }
         char *algoritmo_escolhido = algoritmos[op_algo - 1];
 
-        // 2. Ler a pasta e listar os Traces
+        // 3. Ler a pasta e listar os Traces
         DIR *d;
         struct dirent *dir;
         d = opendir("traces");
         num_traces = 0;
 
         if (d) {
-            printf("\nTraces disponiveis na pasta 'traces/':\n");
+            printf("\n==========================================\n");
+            printf("Traces disponiveis na pasta 'traces/':\n");
             while ((dir = readdir(d)) != NULL) {
                 // Ignora os ponteiros de pasta oculta do sistema "." e ".."
                 if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
@@ -60,7 +75,7 @@ int main() {
             }
             closedir(d);
         } else {
-            printf("\n[!] Erro: Nao foi possivel abrir a pasta 'traces'. Verifique se ela existe na raiz do projeto.\n");
+            printf("\n[!] Erro: Nao foi possivel abrir a pasta 'traces'. Verifique se ela existe.\n");
             continue;
         }
 
@@ -69,23 +84,20 @@ int main() {
             continue;
         }
 
-        // 3. Escolher o Trace
+        // 4. Escolher o Trace
         printf("0. Voltar ao menu anterior\n");
         printf("Escolha o Trace que deseja rodar: ");
         int op_trace;
-        if (scanf("%d", &op_trace) != 1 || op_trace == 0) {
-            continue; // Volta para o início do loop (menu de algoritmos)
-        }
+        if (scanf("%d", &op_trace) != 1 || op_trace == 0) continue;
         if (op_trace < 1 || op_trace > num_traces) {
             printf("\n[!] Opcao invalida.\n");
             continue;
         }
 
-        // Montar o caminho relativo completo do arquivo (ex: "traces/trace_simples.txt")
         char caminho_arquivo[MAX_FILENAME_LEN + 10];
         sprintf(caminho_arquivo, "traces/%s", traces[op_trace - 1]);
 
-        // 4. Abrir arquivo e executar simulação
+        // 5. Abrir arquivo e inicializar
         FILE *file = fopen(caminho_arquivo, "r");
         if (!file) {
             printf("\n[!] Erro ao abrir o arquivo: %s\n", caminho_arquivo);
@@ -100,25 +112,49 @@ int main() {
         else if (is_mockingjay) inicializar_cache_mockingjay();
 
         uint32_t endereco;
+        
+        // Limpa o buffer do teclado antes de entrar no loop de execução para não pular o primeiro 'Passo a Passo'
+        while ((getchar()) != '\n'); 
+
         printf("\n--- Processando %s com politica %s ---\n", traces[op_trace - 1], algoritmo_escolhido);
+        if (modo_execucao == 2) {
+            printf("MODO PASSO A PASSO ATIVADO. Pressione [ENTER] para avançar ou 'q' para interromper.\n\n");
+        }
         
         while (fscanf(file, "%x", &endereco) != EOF) {
             stats.acessos_totais++;
             int hit = 0;
 
+            // Chama a função correspondente
             if (is_lru) hit = acessar_cache_lru(endereco);
             else if (is_mockingjay) hit = acessar_cache_mockingjay(endereco);
 
             if (hit) stats.hits++;
             else stats.misses++;
             
-            // Para debugar passo a passo, basta descomentar a linha abaixo:
-            // printf("Acesso %d: Endereco 0x%X -> %s\n", stats.acessos_totais, endereco, hit ? "HIT" : "MISS");
+            // Lógica do Modo Passo a Passo
+            if (modo_execucao == 2) {
+                printf("==========================================\n");
+                printf("Acesso %d: Endereco 0x%04X -> %s\n", stats.acessos_totais, endereco, hit ? "HIT" : "MISS");
+                
+                // Opcional: Imprime o estado interno da cache para vocês conferirem
+                if (is_lru) imprimir_estado_lru();
+                else if (is_mockingjay) imprimir_estado_mockingjay();
+
+                printf("Acao: [ENTER] proximo | [q] parar analise: ");
+                
+                char buffer[10];
+                fgets(buffer, sizeof(buffer), stdin);
+                if (buffer[0] == 'q' || buffer[0] == 'Q') {
+                    printf("\n[!] Analise passo a passo interrompida pelo usuario.\n");
+                    break;
+                }
+            }
         }
 
         fclose(file);
 
-        // 5. Exibindo os Resultados
+        // 6. Exibindo os Resultados Finais
         double hit_rate = (stats.acessos_totais > 0) ? ((double)stats.hits / stats.acessos_totais) * 100.0 : 0.0;
         
         printf("\n=== RESULTADOS: %s ===\n", algoritmo_escolhido);
@@ -128,10 +164,11 @@ int main() {
         printf("Misses: %d\n", stats.misses);
         printf("Hit Rate: %.2f%%\n", hit_rate);
 
-        // Pausa o programa para você ler o resultado antes de limpar/reimprimir o menu
-        printf("\nPressione ENTER para continuar...");
-        getchar(); // Limpa o buffer do \n deixado pelo scanf anterior
-        getchar(); // Aguarda o usuário apertar Enter de fato
+        printf("\nPressione ENTER para voltar ao menu principal...");
+        if (modo_execucao == 1) {
+            while ((getchar()) != '\n'); // Limpa buffer se veio do modo completo
+        }
+        getchar(); // Aguarda o usuário
     }
 
     return 0;

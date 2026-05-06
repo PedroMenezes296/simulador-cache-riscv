@@ -34,4 +34,6 @@ Compilação: PowerShell
 Caso não utilize o Make, você pode compilar manualmente todos os arquivos fonte:
 
 PowerShell
-gcc src/main.c src/algoritmos/lru.c src/algoritmos/mockingjay.c -o simulador_cache.exe
+# gcc src/main.c src/algoritmos/lru.c src/algoritmos/mockingjay.c -o simulador_cache.exe
+
+# simulador_cache.exe
