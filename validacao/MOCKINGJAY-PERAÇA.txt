@@ -1,0 +1,20 @@
+2. Comportamento do Mockingjay (Heurística Preditiva)
+O Mockingjay terá os mesmos hits de aquecimento, mas vai brilhar na hora que a cache encher, pois ele tenta manter o bloco que será usado mais rápido no futuro.
+
+Linha 1: 0x0000 (A) -> MISS (Cache: A)
+
+Linha 2: 0x0800 (B) -> MISS (Cache: A, B)
+
+Linha 3: 0x0000 (A) -> HIT
+
+Linha 4: 0x0800 (B) -> HIT
+
+Linha 5: 0x1000 (C) -> MISS (Cache cheia! A heurística prevê o futuro: 'A' será usado na linha 6 e 'B' só na linha 7. Como 'B' vai demorar mais, a vítima é o 'B'. Cache: A, C)
+
+Linha 6: 0x0000 (A) -> HIT (Acertou a predição! O LRU errou aqui, mas o Mockingjay acertou. Cache: A, C)
+
+Linha 7: 0x0800 (B) -> MISS (A heurística olha pra frente: 'C' será usado na linha 8 e 'A' nunca mais. Expulsa o 'A'. Cache: B, C)
+
+Linha 8: 0x1000 (C) -> HIT (Acertou de novo!)
+
+Resultado Mockingjay: 4 Hits e 4 Misses (Hit Rate: 50%)

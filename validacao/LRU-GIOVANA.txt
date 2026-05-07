@@ -1,0 +1,20 @@
+1. Comportamento do LRU (Baseline)
+O LRU vai garantir seus 2 hits no começo, mas vai sofrer assim que o terceiro elemento (C) entrar.
+
+Linha 1: 0x0000 (A) -> MISS (Cache: A)
+
+Linha 2: 0x0800 (B) -> MISS (Cache: A, B)
+
+Linha 3: 0x0000 (A) -> HIT (A cache acha o bloco. O LRU marca 'A' como o mais novo e 'B' como o mais velho)
+
+Linha 4: 0x0800 (B) -> HIT (A cache acha o bloco. O LRU inverte: 'B' é o mais novo, 'A' virou o mais velho)
+
+Linha 5: 0x1000 (C) -> MISS (Cache cheia! O LRU olha pro passado, vê que 'A' é o mais velho e o expulsa. Cache: C, B)
+
+Linha 6: 0x0000 (A) -> MISS (O LRU acabou de expulsar o 'A' na linha anterior... Expulsa o 'B'. Cache: C, A)
+
+Linha 7: 0x0800 (B) -> MISS (Expulsa o 'C'. Cache: B, A)
+
+Linha 8: 0x1000 (C) -> MISS (Expulsa o 'A'. Cache: B, C)
+
+Resultado LRU: 2 Hits e 6 Misses (Hit Rate: 25%)
