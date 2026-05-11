@@ -104,9 +104,22 @@ int main() {
             continue;
         }
 
-        CacheStats stats = {0, 0, 0};
         int is_lru = (op_algo == 1);
         int is_mockingjay = (op_algo == 2);
+
+        // Ler o trace inteiro para Mockingjay
+        uint32_t *trace = NULL;
+        int trace_size = 0;
+        uint32_t temp;
+        while (fscanf(file, "%x", &temp) != EOF) {
+            trace = realloc(trace, (trace_size + 1) * sizeof(uint32_t));
+            trace[trace_size++] = temp;
+        }
+        rewind(file);
+
+        if (is_mockingjay) set_trace_mockingjay(trace, trace_size);
+
+        CacheStats stats = {0, 0, 0};
 
         if (is_lru) inicializar_cache_lru();
         else if (is_mockingjay) inicializar_cache_mockingjay();
@@ -135,11 +148,11 @@ int main() {
             // Lógica do Modo Passo a Passo
             if (modo_execucao == 2) {
                 printf("==========================================\n");
-                printf("Acesso %d: Endereco 0x%04X -> %s\n", stats.acessos_totais, endereco, hit ? "HIT" : "MISS");
+                printf("Linha %d: 0x%04X (%c) -> %s ", stats.acessos_totais, endereco, 'A' + (endereco / (BLOCK_SIZE_BYTES * NUM_CONJUNTOS)), hit ? "HIT" : "MISS");
                 
                 // Opcional: Imprime o estado interno da cache para vocês conferirem
-                if (is_lru) imprimir_estado_lru();
-                else if (is_mockingjay) imprimir_estado_mockingjay();
+                if (is_lru) imprimir_estado_lru(endereco);
+                else if (is_mockingjay) imprimir_estado_mockingjay(endereco);
 
                 printf("Acao: [ENTER] proximo | [q] parar analise: ");
                 
@@ -152,7 +165,10 @@ int main() {
             }
         }
 
+        if (is_mockingjay) finalizar_execucao_mockingjay(stats.hits, stats.misses);
+
         fclose(file);
+        free(trace);
 
         // 6. Exibindo os Resultados Finais
         double hit_rate = (stats.acessos_totais > 0) ? ((double)stats.hits / stats.acessos_totais) * 100.0 : 0.0;
