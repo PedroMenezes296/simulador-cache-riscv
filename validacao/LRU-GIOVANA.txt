@@ -1,3 +1,4 @@
+Trace : trace_validacao.txt
 1. Comportamento do LRU (Baseline)
 O LRU vai garantir seus 2 hits no começo, mas vai sofrer assim que o terceiro elemento (C) entrar.
 
@@ -18,3 +19,24 @@ Linha 7: 0x0800 (B) -> MISS (Expulsa o 'C'. Cache: B, A)
 Linha 8: 0x1000 (C) -> MISS (Expulsa o 'A'. Cache: B, C)
 
 Resultado LRU: 2 Hits e 6 Misses (Hit Rate: 25%)
+
+
+
+# Trace : trace_mixed_hotset.txt
+Acesso 1: 0x0000 (A) -> MISS (Cache: A)
+
+Acesso 2: 0x0800 (B) -> MISS (Cache: A, B)
+
+Acesso 3: 0x0000 (A) -> HIT (A cache acha o bloco. O LRU marca 'A' como MRU e 'B' como LRU)
+
+Acesso 4: 0x0800 (B) -> HIT (O LRU inverte: 'B' é o MRU, 'A' virou o LRU)
+
+Acesso 5: 0x1000 (C) -> MISS (Cache cheia! O LRU olha o passado e vê que 'A' foi usado no tempo 3 e 'B' no tempo 4. Ele pune o 'A' e o expulsa. Cache: C, B)
+
+Acesso 6: 0x0000 (A) -> MISS (O LRU acabou de expulsar o 'A' injustamente. Expulsa o 'B'. Cache: C, A)
+
+Acesso 7: 0x0800 (B) -> MISS (Expulsa o 'C'. Cache: B, A)
+
+Acesso 8: 0x0000 (A) -> HIT (Cache: B, A)
+
+Resultado LRU: 3 Hits e 5 Misses (Hit Rate: 37.5%)

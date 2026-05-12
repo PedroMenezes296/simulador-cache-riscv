@@ -1,6 +1,4 @@
-2. Comportamento do Mockingjay (Heurística Preditiva)
-O Mockingjay terá os mesmos hits de aquecimento, mas vai brilhar na hora que a cache encher, pois ele tenta manter o bloco que será usado mais rápido no futuro.
-
+Trace : trace_validacao.txt
 Linha 1: 0x0000 (A) -> MISS (Cache: A)
 
 Linha 2: 0x0800 (B) -> MISS (Cache: A, B)
@@ -18,3 +16,25 @@ Linha 7: 0x0800 (B) -> MISS (A heurística olha pra frente: 'C' será usado na l
 Linha 8: 0x1000 (C) -> HIT (Acertou de novo!)
 
 Resultado Mockingjay: 4 Hits e 4 Misses (Hit Rate: 50%)
+
+
+
+# Trace : trace_mixed_hotset.txt
+Acesso 1: 0x0000 (A) -> MISS (Cache Conjunto 0: A (Intervalo: 999999) | Vazio)
+
+Acesso 2: 0x0800 (B) -> MISS (Cache Conjunto 0: A (Intervalo: 999999) | B (Intervalo: 999999))
+
+Acesso 3: 0x0000 (A) -> HIT (Aprendizado! 'A' percebe que levou 2 clocks para voltar. Cache: A (Intervalo: 2) | B (Intervalo: 999999))
+
+Acesso 4: 0x0800 (B) -> HIT (Aprendizado! 'B' também percebe que levou 2 clocks para voltar. Cache: A (Intervalo: 2) | B (Intervalo: 2))
+
+Acesso 5: 0x1000 (C) -> MISS (A heurística entra em ação! A equação do seu código faz o seguinte:
+ETR do 'A' = (Tempo 3 + Intervalo 2) - Relógio 5 = 0
+ETR do 'B' = (Tempo 4 + Intervalo 2) - Relógio 5 = 1
+A IA descobre que o 'A' é necessário IMEDIATAMENTE (0 clocks), enquanto o 'B' só será necessário no próximo clock. Portanto, a vítima escolhida é o 'B'. Cache: A (Intervalo: 2) | C (Intervalo: 999999))
+
+Acesso 6: 0x0000 (A) -> HIT (Acerto espetacular da IA! O LRU errou aqui, mas o Mockingjay protegeu o A. A aprende o novo intervalo de 3. Cache: A (Intervalo: 3) | C (Intervalo: 999999))
+
+Acesso 7: 0x0800 (B) -> MISS (A IA calcula: ETR do 'A' = (6+3)-7 = 2. ETR do 'C' = 999999. Como 'C' é um intruso que não volta tão cedo, ele é expulso. Cache: A (Intervalo: 3) | B (Intervalo: 999999))
+
+Acesso 8: 0x0000 (A) -> HIT (Acertou novamente! Cache: A (Intervalo: 2) | B (Intervalo: 999999))
