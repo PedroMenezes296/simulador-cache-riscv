@@ -105,6 +105,8 @@ int main() {
         }
 
         CacheStats stats = {0, 0, 0};
+        CacheStats stats_L2 = {0, 0, 0}; // Para estatísticas da L2
+
         int is_lru = (op_algo == 1);
         int is_mockingjay = (op_algo == 2);
 
@@ -118,28 +120,49 @@ int main() {
 
         printf("\n--- Processando %s com politica %s ---\n", traces[op_trace - 1], algoritmo_escolhido);
         if (modo_execucao == 2) {
-            printf("MODO PASSO A PASSO ATIVADO. Pressione [ENTER] para avançar ou 'q' para interromper.\n\n");
+            printf("MODO PASSO A PASSO ATIVADO. Pressione [ENTER] para avancar ou 'q' para interromper.\n\n");
         }
         
         while (fscanf(file, "%x", &endereco) != EOF) {
             stats.acessos_totais++;
             int hit = 0;
+            int hit_L2 = 0;
+            int acessou_L2 = 0;
 
             // Chama a função correspondente
             if (is_lru) hit = acessar_cache_lru(endereco);
             else if (is_mockingjay) hit = acessar_cache_mockingjay(endereco);
 
-            if (hit) stats.hits++;
-            else stats.misses++;
+            if (hit){ stats.hits++;
+            }else {
+                stats.misses++;
+                    // 2. Se deu Miss na L1, o processador vai buscar na L2
+                acessou_L2 = 1;
+                stats_L2.acessos_totais++;                
+
+                if (is_lru) hit_L2 = acessar_L2_lru(endereco);
+                else if (is_mockingjay) hit_L2 = acessar_L2_mockingjay(endereco);
+
+                if (hit_L2) {
+                    stats_L2.hits++;
+                    // Opcional/Avançado: Trazer o bloco da L2 para a L1 (forçando uma inserção/expulsão na L1)
+                } else {
+                    stats_L2.misses++;
+                    // Deu Miss em tudo! Busca na RAM (Insere na L2 e depois insere na L1)
+                }
+            }
             
             // Lógica do Modo Passo a Passo
             if (modo_execucao == 2) {
                 printf("==========================================\n");
                 printf("Acesso %d: Endereco 0x%04X -> %s\n", stats.acessos_totais, endereco, hit ? "HIT" : "MISS");
                 
+                if (acessou_L2) {
+                    printf("  L2: Endereco 0x%04X -> %s\n", endereco, hit_L2 ? "HIT" : "MISS");
+                }
                 // Opcional: Imprime o estado interno da cache para vocês conferirem
                 if (is_lru) imprimir_estado_lru();
-                else if (is_mockingjay) imprimir_estado_mockingjay();
+                else if (is_mockingjay) imprimir_estado_mockingjay(endereco);
 
                 printf("Acao: [ENTER] proximo | [q] parar analise: ");
                 
@@ -150,19 +173,26 @@ int main() {
                     break;
                 }
             }
-        }
 
+        }
         fclose(file);
 
         // 6. Exibindo os Resultados Finais
         double hit_rate = (stats.acessos_totais > 0) ? ((double)stats.hits / stats.acessos_totais) * 100.0 : 0.0;
-        
+        double hr_L2 = (stats_L2.acessos_totais > 0) ? ((double)stats_L2.hits / stats_L2.acessos_totais) * 100.0 : 0.0;
         printf("\n=== RESULTADOS: %s ===\n", algoritmo_escolhido);
         printf("Arquivo: %s\n", traces[op_trace - 1]);
+
+        printf("\n[CACHE L1 - DADOS]\n");
         printf("Acessos Totais: %d\n", stats.acessos_totais);
         printf("Hits: %d\n", stats.hits);
         printf("Misses: %d\n", stats.misses);
         printf("Hit Rate: %.2f%%\n", hit_rate);
+
+        printf("\n[CACHE L2 - UNIFICADA]\n");
+        printf("Acessos Totais: %d (Apenas os Misses da L1 chegam aqui)\n", stats_L2.acessos_totais);
+        printf("Hits: %d | Misses: %d\n", stats_L2.hits, stats_L2.misses);
+        printf("Hit Rate L2: %.2f%%\n", hr_L2);
 
         printf("\nPressione ENTER para voltar ao menu principal...");
         if (modo_execucao == 1) {
