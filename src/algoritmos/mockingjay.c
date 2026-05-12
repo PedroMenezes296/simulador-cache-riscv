@@ -1,45 +1,29 @@
 #include "../../include/mockingjay.h"
 #include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
 
-#define MAX_HISTORICO 10
+#define MAX_INTERVALO 999999 // Representa o "desconhecido" para blocos novos
 
 typedef struct {
     uint32_t tag;
     int valid;
+    int ultimo_acesso;      // Tempo do relógio no último acesso
+    int intervalo_previsto; // O "padrão" aprendido pela heurística
 } CacheLine;
 
 CacheLine cache[NUM_CONJUNTOS][NUM_VIAS];
-
-uint32_t *trace = NULL;
-int trace_size = 0;
-int current_index = 0;
-
-typedef struct {
-    int execucao;
-    int hits;
-    int misses;
-    double hit_rate;
-} Historico;
-
-Historico historico[MAX_HISTORICO];
-int num_historico = 0;
-int execucao_atual = 1;
-
-void set_trace_mockingjay(uint32_t *t, int size) {
-    trace = t;
-    trace_size = size;
-}
+CacheLine cache_L2[L2_NUM_CONJUNTOS][L2_NUM_VIAS]; // Para simular a cache L2 unificada
+int relogio_global = 0;
 
 void inicializar_cache_mockingjay() {
     for (int i = 0; i < NUM_CONJUNTOS; i++) {
         for (int j = 0; j < NUM_VIAS; j++) {
             cache[i][j].valid = 0;
             cache[i][j].tag = 0;
+            cache[i][j].ultimo_acesso = 0;
+            cache[i][j].intervalo_previsto = MAX_INTERVALO; 
         }
     }
-    current_index = 0;
+    relogio_global = 0;
     printf("[Mockingjay] Cache inicializada.\n");
 }
 
@@ -54,92 +38,140 @@ uint32_t calcular_tag(uint32_t endereco) {
 int acessar_cache_mockingjay(uint32_t endereco) {
     int conjunto = calcular_conjunto(endereco);
     uint32_t tag = calcular_tag(endereco);
+    
+    relogio_global++; // O tempo avança a cada instrução lida
 
-    // Verificar hit
+    // 1. Verificar HIT
     for (int v = 0; v < NUM_VIAS; v++) {
         if (cache[conjunto][v].valid && cache[conjunto][v].tag == tag) {
+            // FASE DE APRENDIZADO (Warm-up)
+            int tempo_passado = relogio_global - cache[conjunto][v].ultimo_acesso;
+            
+            // O algoritmo "aprende" o intervalo de reuso deste bloco!
+            cache[conjunto][v].intervalo_previsto = tempo_passado; 
+            cache[conjunto][v].ultimo_acesso = relogio_global;
+            
             return 1; // Hit
         }
     }
 
-    // Miss
+    // 2. Verificar MISS (Decisão de Substituição)
     int via_substituir = -1;
-    if (!cache[conjunto][0].valid) {
-        via_substituir = 0;
-    } else if (!cache[conjunto][1].valid) {
-        via_substituir = 1;
-    } else {
-        // Cache cheia, usar Belady
-        int distancias[2];
-        for (int v = 0; v < NUM_VIAS; v++) {
-            uint32_t tag_atual = cache[conjunto][v].tag;
-            distancias[v] = INT_MAX;
-            for (int k = current_index + 1; k < trace_size; k++) {
-                uint32_t end_futuro = trace[k];
-                uint32_t tag_futuro = calcular_tag(end_futuro);
-                if (tag_futuro == tag_atual && calcular_conjunto(end_futuro) == conjunto) {
-                    distancias[v] = k - current_index;
-                    break;
-                }
-            }
+    int max_etr = -1; // Maior Tempo Estimado de Reuso (vítima)
+
+    for (int v = 0; v < NUM_VIAS; v++) {
+        // Se a via está vazia, ocupa ela sem expulsar ninguém
+        if (!cache[conjunto][v].valid) {
+            via_substituir = v;
+            break; 
         }
-        if (distancias[0] >= distancias[1]) {
-            via_substituir = 0;
-        } else {
-            via_substituir = 1;
+        
+        // CÁLCULO DA HEURÍSTICA: Quando este bloco deve ser pedido de novo?
+        // ETR = (Tempo do Último Acesso + O intervalo que ele costuma levar) - Tempo Atual
+        int tempo_estimado_reuso = (cache[conjunto][v].ultimo_acesso + cache[conjunto][v].intervalo_previsto) - relogio_global;
+        
+        // Se a heurística der negativo, significa que ele já devia ter sido chamado e não foi.
+        // Assumimos que a predição errou e ele vai demorar muito.
+        if (tempo_estimado_reuso < 0) tempo_estimado_reuso = MAX_INTERVALO;
+
+        // Procuramos o bloco com o maior tempo de reuso (o que vai demorar mais)
+        if (tempo_estimado_reuso > max_etr) {
+            max_etr = tempo_estimado_reuso;
+            via_substituir = v;
         }
-        printf("Decisão: Bloco %c (distância %d) substituído por %c (distância %d)\n", 'A' + cache[conjunto][via_substituir].tag, distancias[via_substituir], 'A' + tag, distancias[1 - via_substituir]);
     }
 
-    // Substituir
+    // 3. Substituir o bloco
     cache[conjunto][via_substituir].tag = tag;
     cache[conjunto][via_substituir].valid = 1;
-    current_index++;
+    cache[conjunto][via_substituir].ultimo_acesso = relogio_global;
+    
+    // Como acabou de entrar e não tem histórico, colocamos o intervalo como desconhecido
+    cache[conjunto][via_substituir].intervalo_previsto = MAX_INTERVALO; 
+
+    return 0; // Miss
+}
+
+int acessar_L2_mockingjay(uint32_t endereco) {
+    uint32_t conjunto = (endereco / L2_BLOCK_SIZE) % L2_NUM_CONJUNTOS;
+    uint32_t tag = endereco / (L2_BLOCK_SIZE * L2_NUM_CONJUNTOS);
+
+    // 1. Tentar o Hit na L2
+    for (int v = 0; v < L2_NUM_VIAS; v++) {
+        if (cache_L2[conjunto][v].valid && cache_L2[conjunto][v].tag == tag) {
+            // Usa o mesmo relógio da CPU para calcular o intervalo da L2
+            int tempo_passado = relogio_global - cache_L2[conjunto][v].ultimo_acesso;
+            cache_L2[conjunto][v].intervalo_previsto = tempo_passado; 
+            cache_L2[conjunto][v].ultimo_acesso = relogio_global;
+            return 1; // Hit
+        }
+    }
+
+    // 2. Miss na L2: Decidir expulsão pela Heurística
+    int via_substituir = 0;
+    int max_etr = -1;
+
+    for (int v = 0; v < L2_NUM_VIAS; v++) {
+        if (!cache_L2[conjunto][v].valid) {
+            via_substituir = v;
+            break; 
+        }
+        int etr = (cache_L2[conjunto][v].ultimo_acesso + cache_L2[conjunto][v].intervalo_previsto) - relogio_global;
+        if (etr < 0) etr = MAX_INTERVALO;
+
+        if (etr > max_etr) {
+            max_etr = etr;
+            via_substituir = v;
+        }
+    }
+
+    // 3. Substituir
+    cache_L2[conjunto][via_substituir].tag = tag;
+    cache_L2[conjunto][via_substituir].valid = 1;
+    cache_L2[conjunto][via_substituir].ultimo_acesso = relogio_global;
+    cache_L2[conjunto][via_substituir].intervalo_previsto = MAX_INTERVALO; 
     return 0; // Miss
 }
 
 void imprimir_estado_mockingjay(uint32_t endereco) {
-    int conjunto = calcular_conjunto(endereco);
-    printf("| Cache: ");
-    for (int v = 0; v < NUM_VIAS; v++) {
-        if (cache[conjunto][v].valid) {
-            printf("%c", 'A' + cache[conjunto][v].tag);
-        } else {
-            printf("-");
+   printf("\n[MOCKINGJAY] === ESTADO ATUAL DA CACHE L1 ===\n");
+    for (int i = 0; i < NUM_CONJUNTOS; i++) {
+        int conjunto_tem_dado = 0;
+        for (int j = 0; j < NUM_VIAS; j++) {
+            if (cache[i][j].valid) { conjunto_tem_dado = 1; break; }
         }
-        if (v < NUM_VIAS - 1) printf(", ");
-    }
-    printf("\n");
-}
+        if (!conjunto_tem_dado) continue;
 
-void finalizar_execucao_mockingjay(int hits, int misses) {
-    int acessos = hits + misses;
-    double hit_rate = (acessos > 0) ? ((double)hits / acessos) * 100.0 : 0.0;
-
-    // Adicionar ao histórico
-    if (num_historico < MAX_HISTORICO) {
-        historico[num_historico].execucao = execucao_atual;
-        historico[num_historico].hits = hits;
-        historico[num_historico].misses = misses;
-        historico[num_historico].hit_rate = hit_rate;
-        num_historico++;
-    } else {
-        // Deslocar
-        for (int i = 1; i < MAX_HISTORICO; i++) {
-            historico[i - 1] = historico[i];
+        printf("Conjunto %d: ", i);
+        for (int j = 0; j < NUM_VIAS; j++) {
+            if (cache[i][j].valid) {
+                printf("[Tag: 0x%X | IntPreditivo: %d]", cache[i][j].tag, cache[i][j].intervalo_previsto);
+            } else {
+                printf("[Vazio]");
+            }
+            if (j < NUM_VIAS - 1) printf(" | ");
         }
-        historico[MAX_HISTORICO - 1].execucao = execucao_atual;
-        historico[MAX_HISTORICO - 1].hits = hits;
-        historico[MAX_HISTORICO - 1].misses = misses;
-        historico[MAX_HISTORICO - 1].hit_rate = hit_rate;
+        printf("\n");
     }
-    execucao_atual++;
 
-    // Calcular média
-    double soma = 0.0;
-    for (int i = 0; i < num_historico; i++) {
-        soma += historico[i].hit_rate;
+    printf("\n[MOCKINGJAY] === ESTADO ATUAL DA CACHE L2 ===\n");
+    for (int i = 0; i < L2_NUM_CONJUNTOS; i++) {
+        int conjunto_tem_dado = 0;
+        for (int j = 0; j < L2_NUM_VIAS; j++) {
+            if (cache_L2[i][j].valid) { conjunto_tem_dado = 1; break; }
+        }
+        if (!conjunto_tem_dado) continue;
+
+        printf("Conjunto %d: ", i);
+        for (int j = 0; j < L2_NUM_VIAS; j++) {
+            if (cache_L2[i][j].valid) {
+                printf("[Tag: 0x%X | IntPreditivo: %d]", cache_L2[i][j].tag, cache_L2[i][j].intervalo_previsto);
+            } else {
+                printf("[Vazio]");
+            }
+            if (j < L2_NUM_VIAS - 1) printf(" | ");
+        }
+        printf("\n");
     }
-    double media = (num_historico > 0) ? soma / num_historico : 0.0;
-    printf("Média das últimas %d execuções: %.2f%%\n", num_historico, media);
+    printf("========================================\n");
 }
