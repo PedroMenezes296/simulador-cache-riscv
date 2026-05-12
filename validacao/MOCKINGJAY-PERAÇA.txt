@@ -20,21 +20,64 @@ Resultado Mockingjay: 4 Hits e 4 Misses (Hit Rate: 50%)
 
 
 # Trace : trace_mixed_hotset.txt
-Acesso 1: 0x0000 (A) -> MISS (Cache Conjunto 0: A (Intervalo: 999999) | Vazio)
+Gabarito Passo a Passo (Mockingjay com L1 e L2)
+Acesso 1: 0x0000 (Bloco A)
 
-Acesso 2: 0x0800 (B) -> MISS (Cache Conjunto 0: A (Intervalo: 999999) | B (Intervalo: 999999))
+L1: MISS (Aloca no Conjunto 0. Relógio=1)
 
-Acesso 3: 0x0000 (A) -> HIT (Aprendizado! 'A' percebe que levou 2 clocks para voltar. Cache: A (Intervalo: 2) | B (Intervalo: 999999))
+L2: MISS (Aloca no Conjunto 0)
 
-Acesso 4: 0x0800 (B) -> HIT (Aprendizado! 'B' também percebe que levou 2 clocks para voltar. Cache: A (Intervalo: 2) | B (Intervalo: 2))
+Acesso 2: 0x0800 (Bloco B)
 
-Acesso 5: 0x1000 (C) -> MISS (A heurística entra em ação! A equação do seu código faz o seguinte:
-ETR do 'A' = (Tempo 3 + Intervalo 2) - Relógio 5 = 0
-ETR do 'B' = (Tempo 4 + Intervalo 2) - Relógio 5 = 1
-A IA descobre que o 'A' é necessário IMEDIATAMENTE (0 clocks), enquanto o 'B' só será necessário no próximo clock. Portanto, a vítima escolhida é o 'B'. Cache: A (Intervalo: 2) | C (Intervalo: 999999))
+L1: MISS (Aloca no Conjunto 0. Cache L1: A e B)
 
-Acesso 6: 0x0000 (A) -> HIT (Acerto espetacular da IA! O LRU errou aqui, mas o Mockingjay protegeu o A. A aprende o novo intervalo de 3. Cache: A (Intervalo: 3) | C (Intervalo: 999999))
+L2: MISS (Graças aos blocos de 64B, aloca no Conjunto 32)
 
-Acesso 7: 0x0800 (B) -> MISS (A IA calcula: ETR do 'A' = (6+3)-7 = 2. ETR do 'C' = 999999. Como 'C' é um intruso que não volta tão cedo, ele é expulso. Cache: A (Intervalo: 3) | B (Intervalo: 999999))
+Acesso 3: 0x0000 (Bloco A)
 
-Acesso 8: 0x0000 (A) -> HIT (Acertou novamente! Cache: A (Intervalo: 2) | B (Intervalo: 999999))
+L1: HIT (IA aprende! O intervalo de 'A' na L1 vira 2. Relógio=3)
+
+L2: Não acessada!
+
+Acesso 4: 0x0800 (Bloco B)
+
+L1: HIT (IA aprende! O intervalo de 'B' na L1 vira 2. Relógio=4)
+
+L2: Não acessada!
+
+Acesso 5: 0x1000 (Bloco C)
+
+L1: MISS (Cache cheia! A IA protege o 'A' que tem ETR=0 e expulsa o 'B' que tem ETR=1. Cache L1: A e C. Relógio=5)
+
+L2: MISS (Acessada porque L1 falhou. Aloca o 'C' no Conjunto 0 junto com o 'A', pois a L2 tem 8 vias e espaço de sobra).
+
+Acesso 6: 0x0000 (Bloco A)
+
+L1: HIT (Acerto da IA! O intervalo de 'A' agora é 3. Relógio=6)
+
+L2: Não acessada! (Nota: No LRU, isso aqui era um Miss e a L2 era chamada. A sua IA economizou energia do sistema aqui!)
+
+Acesso 7: 0x0800 (Bloco B)
+
+L1: MISS (O intruso 'C' é expulso para o 'B' voltar. Relógio=7)
+
+L2: HIT! (A L1 pediu socorro, e a L2 acha o 'B' guardado no Conjunto 32. Detalhe legal: A L2 "aprende" o padrão do 'B' aqui. Como o B entrou na L2 no relógio 2 e voltou no 7, a IA da L2 grava que o intervalo do 'B' é 5!)
+
+Acesso 8: 0x0000 (Bloco A)
+
+L1: HIT (Acerto da IA. Intervalo de 'A' atualiza para 2. Relógio=8)
+
+L2: Não acessada!
+
+=== RESULTADOS: Mockingjay ===
+Arquivo: trace_mixed_hotset.txt
+
+[CACHE L1 - DADOS]
+Acessos Totais: 8
+Hits: 4 | Misses: 4
+Hit Rate L1: 50.00%
+
+[CACHE L2 - UNIFICADA]
+Acessos Totais: 4 (Apenas os Misses da L1 chegam aqui)
+Hits: 1 | Misses: 3
+Hit Rate L2: 25.00%

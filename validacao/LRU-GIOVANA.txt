@@ -23,20 +23,64 @@ Resultado LRU: 2 Hits e 6 Misses (Hit Rate: 25%)
 
 
 # Trace : trace_mixed_hotset.txt
-Acesso 1: 0x0000 (A) -> MISS (Cache: A)
+Gabarito Passo a Passo (LRU com L1 e L2)
+Acesso 1: 0x0000 (Bloco A)
 
-Acesso 2: 0x0800 (B) -> MISS (Cache: A, B)
+L1: MISS (Aloca no Conjunto 0)
 
-Acesso 3: 0x0000 (A) -> HIT (A cache acha o bloco. O LRU marca 'A' como MRU e 'B' como LRU)
+L2: MISS (Aloca no Conjunto 0)
 
-Acesso 4: 0x0800 (B) -> HIT (O LRU inverte: 'B' é o MRU, 'A' virou o LRU)
+Acesso 2: 0x0800 (Bloco B)
 
-Acesso 5: 0x1000 (C) -> MISS (Cache cheia! O LRU olha o passado e vê que 'A' foi usado no tempo 3 e 'B' no tempo 4. Ele pune o 'A' e o expulsa. Cache: C, B)
+L1: MISS (Aloca no Conjunto 0. Cache L1 Conjunto 0 agora tem: A e B)
 
-Acesso 6: 0x0000 (A) -> MISS (O LRU acabou de expulsar o 'A' injustamente. Expulsa o 'B'. Cache: C, A)
+L2: MISS (Aloca no Conjunto 32)
 
-Acesso 7: 0x0800 (B) -> MISS (Expulsa o 'C'. Cache: B, A)
+Acesso 3: 0x0000 (Bloco A)
 
-Acesso 8: 0x0000 (A) -> HIT (Cache: B, A)
+L1: HIT (O LRU da L1 marca 'A' como o mais novo)
 
-Resultado LRU: 3 Hits e 5 Misses (Hit Rate: 37.5%)
+L2: Não acessada! (A L2 só é acordada se a L1 falhar)
+
+Acesso 4: 0x0800 (Bloco B)
+
+L1: HIT (O LRU da L1 marca 'B' como o mais novo)
+
+L2: Não acessada!
+
+Acesso 5: 0x1000 (Bloco C)
+
+L1: MISS (Cache L1 cheia! O LRU expulsa o 'A'. Cache L1 agora tem: C e B)
+
+L2: MISS (Aloca no Conjunto 0. Como a L2 tem 8 vias, o 'A' que já estava lá e o 'C' convivem em paz no mesmo conjunto).
+
+Acesso 6: 0x0000 (Bloco A)
+
+L1: MISS (O LRU da L1 acabou de expulsar o 'A'. Ele expulsa o 'B' para trazer o 'A' de volta. Cache L1: C e A)
+
+L2: HIT! (A mágica da hierarquia! A L1 não encontrou o 'A', foi pedir socorro para a L2 e a L2 já tinha ele guardado no Conjunto 0).
+
+Acesso 7: 0x0800 (Bloco B)
+
+L1: MISS (O LRU da L1 expulsa o 'C'. Cache L1: B e A)
+
+L2: HIT! (A L2 acha o 'B' tranquilamente lá no Conjunto 32 dela).
+
+Acesso 8: 0x0000 (Bloco A)
+
+L1: HIT (Estava guardado na L1).
+
+L2: Não acessada!
+
+=== RESULTADOS: LRU ===
+Arquivo: trace_mixed_hotset.txt
+
+[CACHE L1 - DADOS]
+Acessos Totais: 8
+Hits: 3 | Misses: 5
+Hit Rate L1: 37.50%
+
+[CACHE L2 - UNIFICADA]
+Acessos Totais: 5 (Apenas os Misses da L1 chegam aqui)
+Hits: 2 | Misses: 3
+Hit Rate L2: 40.00%
