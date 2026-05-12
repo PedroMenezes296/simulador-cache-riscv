@@ -3,6 +3,7 @@
 
 # Ignora executáveis genéricos sem extensão (Linux/Mac)
 simulador_cache
+simulador_cache.exe
 
 # Ignora os arquivos de objeto gerados pelo compilador (C/C++)
 *.o
