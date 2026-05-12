@@ -1,0 +1,13 @@
+# Ignora executáveis (Windows)
+*.exe
+
+# Ignora executáveis genéricos sem extensão (Linux/Mac)
+simulador_cache
+
+# Ignora os arquivos de objeto gerados pelo compilador (C/C++)
+*.o
+*.obj
+
+# Se vocês estiverem usando VS Code, Code::Blocks, etc., é bom ignorar pastas do editor:
+.vscode/
+.idea/
