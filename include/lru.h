@@ -5,7 +5,8 @@
 #include <stdint.h>
 
 void inicializar_cache_lru();
-int acessar_cache_lru(uint32_t endereco); // Retorna 1 para Hit, 0 para Miss
+int acessar_cache_lru(uint32_t endereco);
+int acessar_L2_lru(uint32_t endereco); // Retorna 1 para Hit, 0 para Miss
 void imprimir_estado_lru(); // Útil para validação linha a linha
 
 #endif
